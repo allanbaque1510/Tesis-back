@@ -34,14 +34,14 @@ class DashboardController extends Controller
 
             $TD = $this->obtenerGraficoTD();
             $TT = $this->obtenerGraficoTT();
-            if(!$TD['ok'])throw new Exception("Error al obtener la tasa de desercion");
-            if(!$TT['ok'])throw new Exception("Error al obtener la tasa de titulacion");
+            // if(!$TD['ok'])throw new Exception("Error al obtener la tasa de desercion");
+            // if(!$TT['ok'])throw new Exception("Error al obtener la tasa de titulacion");
 
             return response()->json([
                 'ok'=>true,
                 'data' => [
-                    "desercion"=>$TD['data'],
-                    "titulacion"=>$TT['data'],
+                    "desercion"=>$TD['data']??null,
+                    "titulacion"=>$TT['data']??null,
                     ]
             ], 200);
         
@@ -65,18 +65,21 @@ class DashboardController extends Controller
                 "periodo.anio_inicio",
                 "periodo.anio_fin",
                 "periodo.ciclo"
-            );
-            $filteredPeriodos = DB::table(DB::raw("({$subQuery->toSql()}) as sub"))
-                ->mergeBindings($subQuery->getQuery()) // Para combinar las bindings de la subconsulta
-                ->select('sub.*')
-                ->where('sub.row_num', '>=', $row_periodo)
-                ->orderBy('sub.anio_inicio', 'desc')
-                ->orderBy('sub.ciclo', 'desc')
-                ->limit($configuracionCarrera->periodos_desercion)
-                ->get();
-
-            $ultimoPeriodo = collect($filteredPeriodos)->last();
+            )
+            ->join('archivos_subidos','archivos_subidos.id_periodo','periodo.id')
+            ->where('archivos_subidos.id_indicador',1);
             
+            $filteredPeriodos = DB::table(DB::raw("({$subQuery->toSql()}) as sub"))
+            ->mergeBindings($subQuery->getQuery()) // Para combinar las bindings de la subconsulta
+            ->select('sub.*')
+            ->where('sub.row_num', '>=', $row_periodo)
+            ->orderBy('sub.anio_inicio', 'desc')
+            ->orderBy('sub.ciclo', 'desc')
+            ->limit($configuracionCarrera->periodos_desercion)
+            ->get();
+            
+            $ultimoPeriodo = collect($filteredPeriodos)->last();
+            Log::info(collect($ultimoPeriodo));
             $estudiantesIngresados = RegistroEstudiantil::select(
                 "registro_estudiantil.id_estudiante",
                 "estudiantes.estudiante",
@@ -89,7 +92,7 @@ class DashboardController extends Controller
             ->where('habilitado.descripcion','NIVELACION')
             ->where('registro_estudiantil.id_periodo',$ultimoPeriodo->id)
             ->get()->pluck('id_estudiante');
-
+            
             $data2 = RegistroEstudiantil::
             where('id_periodo',$filteredPeriodos[0]->id)
             ->where('id_carrera',$this->carreraRequest)
@@ -135,14 +138,13 @@ class DashboardController extends Controller
             $estudiantesEgresados = EstudiantesEgresados::where('id_periodo_relacionado',$filteredPeriodos[0]->id)->get();
 
             if(!count($estudiantesEgresados) > 0 ){
-                throw new Exception("No existen estudiantes egresados en ese periodo");
+                return false;
             }
 
             $hasta = $configuracionCarrera->total_periodos + $configuracionCarrera->periodos_gracia;
             $periodosTitulacion = [] ;
             for ($i=$configuracionCarrera->total_periodos- 1; $i < $hasta; $i++) { 
                 if(isset($filteredPeriodos[$i])){
-                        Log::info(collect($filteredPeriodos[$i]));
                         $periodosTitulacion [] =$filteredPeriodos[$i]->id;
                 }
             }

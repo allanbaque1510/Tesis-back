@@ -66,7 +66,7 @@ public function obtenerRowPeriodo($id_periodo){
                 ->limit($configuracionCarrera->periodos_desercion)
                 ->get();
 
-                $ultimoPeriodo = collect($filteredPeriodos)->last();
+            $ultimoPeriodo = collect($filteredPeriodos)->last();
          
             
             $estudiantesIngresados = RegistroEstudiantil::select(
@@ -104,22 +104,71 @@ public function obtenerRowPeriodo($id_periodo){
                         "ciclo"=>$valueDatos->ciclo,
                     ];
             }
-
           
             return response()->json([
                 'ok'=>true,
                 'data' => $data,
+                'total'=>count($arrayEstudiantes),
             ], 200);
         
         }catch (Exception $e) {
             Log::error($e);
             return response([
                 "ok"=>false,
-                'message'=>'Error al verificar el token',
+                'message'=>'Error al obtener el periodo',
                 "error"=>$e->getMessage()
             ],400);                 
         }
     }
 
+    public function eliminarTasaDesercion(Request $request){
+        try {
+            Log::info($request);
+            ArchivosSubidos::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
+            RegistroEstudiantil::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
+            return response()->json([
+                'ok'=>true,
+            ], 200);
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al eliminar los datos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+
+
+
+    
+    public function obtenerHistorialPeriodoTasaDesercion(Request $request){
+        try {
+            $periodos = ArchivosSubidos::select(
+                'periodo.id',
+                'periodo.id_codigo',
+                'periodo.codigo',
+                'carrera.carrera',
+                "archivos_subidos.id_carrera",
+                'archivos_subidos.created_at',
+            )
+            ->join('periodo','archivos_subidos.id_periodo','periodo.id')
+            ->join('carrera','carrera.id','archivos_subidos.id_carrera')
+            ->orderBy('periodo.anio_inicio','asc')
+            ->orderBy('periodo.ciclo','asc')
+            ->where('archivos_subidos.id_indicador',1)
+            ->get();
+            return response()->json(['ok'=>true,'periodos' =>$periodos]);
+
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener el registro de periodos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
     
 }

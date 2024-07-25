@@ -14,6 +14,7 @@ class ConfigIndicadoresCarrera extends Model
         'periodos_desercion',
         'id_carrera',
         'total_periodos',
+        'puntuacion',
         'periodos_gracia',
     ];
 }

@@ -42,6 +42,23 @@ public function obtenerRowPeriodo($id_periodo){
         ->first();
     return $periodoWithRowNum;
     }
+    public function eliminarDatosTasaTitulacion(Request $request){
+        try {
+            ArchivosSubidos::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
+            EstudiantesEgresados::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
+            return response()->json([
+                'ok'=>true,
+            ], 200);
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al eliminar los datos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
 
     public function obtenerDataPeriodoTitulacion(Request $request){
         try {
@@ -102,6 +119,36 @@ public function obtenerRowPeriodo($id_periodo){
             ],400);                 
         }
     }
+
+
+    public function obtenerHistorialPeriodoTasaTitulacion(Request $request){
+        try {
+            $periodos = Periodo::select(
+                'periodo.id',
+                'archivos_subidos.id_carrera',
+                'periodo.codigo as periodo',
+                'archivos_subidos.created_at',
+                "carrera.carrera",
+            )
+            ->join('archivos_subidos','archivos_subidos.id_periodo','periodo.id')
+            ->join('carrera','carrera.id','archivos_subidos.id_carrera')
+            ->orderBy('periodo.codigo','asc')
+            ->where('archivos_subidos.id_indicador',2)
+            ->where('archivos_subidos.estado',1)
+            ->get();
+            return response()->json(['ok'=>true,'periodos' =>$periodos]);
+
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener el registro de periodos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+    
 
     
 }

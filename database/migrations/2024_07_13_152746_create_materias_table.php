@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('carrera', function (Blueprint $table) {
-            $table->id();
-            $table->string('codigo')->index()->nullable();
-            $table->string('carrera');
-            $table->tinyInteger('estado')->default(1);
+        Schema::create('materias', function (Blueprint $table) {
+            $table->id('id_materia');
+            $table->string("codigo")->index();
+            $table->string("descripcion");
+            $table->integer("nivel")->index();
             $table->timestamps();
         });
     }
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('carrera');
+        Schema::dropIfExists('materias');
     }
 };

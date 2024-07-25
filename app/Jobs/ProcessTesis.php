@@ -24,7 +24,13 @@ class ProcessTesis implements ShouldQueue
         try {
             Log::info("Ejecutandose Job");
             $variables = ['LINEA DE TIEMPO','GRAFICO DE BARRAS','GRAFICO DE PASTEL'];
-            $indicadores = ['TASA DE DESERCION','TASA DE TITULACION'];
+            $indicadores = [
+                'TASA DE DESERCION',
+                'TASA DE TITULACION',
+                'NOMINA CARRERA MATERIA DOCENTE',
+                'CARGA MASIVA PUNTUACION LOGROS APRENDIZAJE',
+                'NOMINA ESTUDIANTES PERIODO',
+            ];
             $datos = [] ;
             foreach ($variables as $value) {
                 $datos [] =[

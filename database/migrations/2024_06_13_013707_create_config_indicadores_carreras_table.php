@@ -18,6 +18,7 @@ return new class extends Migration
             $table->tinyInteger('periodos_desercion');
             $table->tinyInteger('total_periodos');
             $table->tinyInteger('periodos_gracia');
+            $table->tinyInteger('puntuacion');
             $table->tinyInteger('estado')->default(1);
             $table->timestamps();
         });

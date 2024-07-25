@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('archivos_subidos', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('id_periodo');
+            $table->unsignedBigInteger('id_periodo')->nullable();
             $table->foreign('id_periodo')->references('id')->on('periodo')->onDelete('cascade')->onUpdate('cascade');
             
-            $table->unsignedBigInteger('id_carrera');
+            $table->unsignedBigInteger('id_carrera')->nullable();
             $table->foreign('id_carrera')->references('id')->on('carrera')->onDelete('cascade')->onUpdate('cascade');
             
             $table->unsignedBigInteger('id_indicador');
