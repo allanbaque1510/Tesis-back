@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ArchivosSubidos;
 use App\Models\ConfigIndicadoresCarrera;
+use App\Models\EstudiantesReprobados;
 use App\Models\Materia;
+use App\Models\PuntuacionGrupoEstudiante;
 use App\Models\TipoGrafico;
 use Exception;
 use Illuminate\Http\Request;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\Periodo;
 use App\Models\Carrera;
 use App\Models\CarreraDocenteMateria;
+use App\Models\EstudianteGrupoEstudiante;
 use App\Models\Estudiantes;
 use App\Models\EstudiantesEgresados;
 use App\Models\Habilitado;
@@ -118,6 +121,32 @@ class ServiciosController extends Controller
             ],400);                 
         }
     }
+    public function obtenerComboPeriodoReprobados(Request $request){
+        try {
+                $periodos = EstudiantesReprobados::select(
+                    "periodo.id as value",
+                    "periodo.codigo as label"
+                )
+                ->where('estudiantes_reprobados.id_carrera',$request->id_carrera)
+                ->join('periodo','estudiantes_reprobados.id_periodo','periodo.id')
+                ->distinct('periodo.id')
+                ->orderBy('periodo.codigo','desc')
+                ->get();
+
+                return response()->json([
+                    'ok'=>true,
+                    'data' => $periodos,
+                ], 200);
+
+            }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener el combo periodo reprobados',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
     public function obtenerComboPeriodoTitulacion(Request $request){
         try {
             if(!isset($request->id_carrera)){
@@ -138,14 +167,10 @@ class ServiciosController extends Controller
             }
             $configuracion = ConfigIndicadoresCarrera::where('id_carrera',$request->id_carrera)->first();
 
-            $tipoGrafico = TipoGrafico::select(
-                "id_tipo as value",
-                "descripcion as label"
-            )->get();
-
+          
             return response()->json([
                 'ok'=>true,
-                'data' => ["periodo"=>$periodos,'tipo_grafico'=>$tipoGrafico,'configuracion'=>$configuracion]
+                'data' => ["periodo"=>$periodos,'configuracion'=>$configuracion]
             ], 200);
         
         }catch (Exception $e) {
@@ -157,6 +182,28 @@ class ServiciosController extends Controller
             ],400);                 
         }
     }
+    
+    public function obtenerPeriodoNominaCarreraDocenteMateriaConEstudiantes($id_carrera){
+        try {
+            $periodos = EstudianteGrupoEstudiante::select(
+                "periodo.id as value",
+                "periodo.codigo as label"
+            )
+            ->where('estudiante_grupo_estudiante.id_carrera',$id_carrera)
+            ->join('periodo','periodo.id','estudiante_grupo_estudiante.id_periodo')
+            ->distinct('periodo.id')
+            ->get();
+            return ["ok"=>true,"data"=>$periodos];
+        }catch (Exception $e) {
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener los periodos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+
     public function obtenerPeriodoNominaCarreraDocenteMateria($id_carrera){
         try {
             $periodos = CarreraDocenteMateria::select(
@@ -185,7 +232,10 @@ class ServiciosController extends Controller
             )
             ->where('carrera_docente_materias.id_carrera',$id_carrera)
             ->where('carrera_docente_materias.id_periodo',$id_periodo)
-            ->join("logros_mat_carr_per_doc","carrera_docente_materias.id_carrera_docente_materia","logros_mat_carr_per_doc.id_carrera_docente_materia")
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
             ->join('materias','materias.id_materia','carrera_docente_materias.id_materia')
             ->distinct('materias.id_materia')
             ->get();
@@ -237,7 +287,10 @@ class ServiciosController extends Controller
                 "logros_aprendizaje.id_logros as value",
                 "logros_aprendizaje.descripcion as logro",
             )
-            ->join('logros_mat_carr_per_doc','logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
             ->join('logros_aprendizaje','logros_mat_carr_per_doc.id_logros','logros_aprendizaje.id_logros')
             ->where('carrera_docente_materias.id_carrera',$request->carrera)
             ->where('carrera_docente_materias.id_periodo',$request->periodos)
@@ -284,9 +337,128 @@ class ServiciosController extends Controller
             ],400);                 
         }
     }
+    public function obtenerComboPeriodoLogrosAprendizaje(Request $request){
+        try {
+            $periodos = PuntuacionGrupoEstudiante::select(
+                "periodo.id as value",
+                "periodo.codigo as label"
+            )
+            ->where('carrera_docente_materias.id_carrera',$request->id_carrera)
+            ->join('logros_mat_carr_per_doc','puntuacion_logro_grupo_estudiante.id_logros_mat_carr','logros_mat_carr_per_doc.id_logros_mat_carr_per_doc')
+            ->join('carrera_docente_materias','carrera_docente_materias.id_carrera_docente_materia','logros_mat_carr_per_doc.id_carrera_docente_materia')
+            ->join('periodo','carrera_docente_materias.id_periodo','periodo.id')
+            ->distinct('periodo.id')
+            ->orderBy('periodo.codigo','desc')
+            ->get();
+
+            return response()->json([
+                'ok'=>true,
+                'data' => $periodos,
+            ], 200);
+        }catch (Exception $e) {
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener los periodos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+    public function obtenerComboMateriasLogrosAprendizaje(Request $request){
+        try {
+
+            $materias = PuntuacionGrupoEstudiante::select(
+                "materias.id_materia as value",
+                "materias.descripcion as label"
+            )
+            ->where('carrera_docente_materias.id_carrera',$request->carrera)
+            ->where('carrera_docente_materias.id_periodo',$request->periodo)
+            ->join('logros_mat_carr_per_doc','puntuacion_logro_grupo_estudiante.id_logros_mat_carr','logros_mat_carr_per_doc.id_logros_mat_carr_per_doc')
+            ->join('carrera_docente_materias','carrera_docente_materias.id_carrera_docente_materia','logros_mat_carr_per_doc.id_carrera_docente_materia')
+            ->join('materias','carrera_docente_materias.id_materia','materias.id_materia')
+            ->distinct('carrera_docente_materias.id_materia')
+            ->orderBy('materias.descripcion','desc')
+            ->get();
+
+            return response()->json([
+                'ok'=>true,
+                'data' => $materias,
+            ], 200);
+        }catch (Exception $e) {
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener los periodos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+
+    public function historialReporteNominaGrupoEstudiantes(Request $request){
+        try {
+            $datos = ArchivosSubidos::select(
+                "periodo.codigo as periodo",
+                "carrera.carrera",
+                "archivos_subidos.created_at as fecha"
+            )
+            ->join('periodo','periodo.id','archivos_subidos.id_periodo')
+            ->join('carrera','carrera.id','archivos_subidos.id_carrera')
+            ->where('archivos_subidos.id_indicador',5)
+            ->where('archivos_subidos.estado',1)
+            ->get();
+
+            return ["ok"=>true, "data"=>$datos];
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener el historial',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+    public function eliminarDatosArchivo(Request $request){
+        try {
+            ArchivosSubidos::where('id',$request->id)->delete();
+            
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al borrar el archivo del historial',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+    public function historialReporteReprobados(Request $request){
+        try {
+            $datos = ArchivosSubidos::select(
+                "archivos_subidos.id",
+                "periodo.codigo as periodo",
+                "carrera.carrera",
+                "archivos_subidos.created_at as fecha"
+            )
+            ->join('periodo','periodo.id','archivos_subidos.id_periodo')
+            ->join('carrera','carrera.id','archivos_subidos.id_carrera')
+            ->where('archivos_subidos.id_indicador',6)
+            ->where('archivos_subidos.estado',1)
+            ->get();
+
+            return ["ok"=>true, "data"=>$datos];
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener el historial',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
     public function saveConfiguration(Request $request){
         try {
-            Log::info($request);
             if(isset($request->id_configuracion)){
                 $data = ConfigIndicadoresCarrera::where('id_configuracion',$request->id_configuracion)
                 ->update([

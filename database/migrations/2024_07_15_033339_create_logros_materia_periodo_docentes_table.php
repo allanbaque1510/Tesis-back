@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id('id_logros_mat_carr_per_doc');
             $table->unsignedBigInteger('id_carrera_docente_materia');
             $table->unsignedBigInteger("id_logros");
+            $table->tinyInteger("estado")->default(1);
             $table->foreign('id_logros')->references('id_logros')->on('logros_aprendizaje')->onUpdate('cascade');
             $table->foreign('id_carrera_docente_materia')->references('id_carrera_docente_materia')->on('carrera_docente_materias')->onUpdate('cascade');
             $table->timestamps();

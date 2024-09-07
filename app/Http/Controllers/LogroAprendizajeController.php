@@ -7,6 +7,8 @@ use App\Models\CarreraDocenteMateria;
 use App\Models\ConfigIndicadoresCarrera;
 use App\Models\LogrosAprendizaje;
 use App\Models\LogrosMateriaPeriodoDocente;
+use App\Models\Materia;
+use App\Models\PuntuacionGrupoEstudiante;
 use App\Models\TipoGrafico;
 use Exception;
 use Illuminate\Http\Request;
@@ -58,7 +60,6 @@ class LogroAprendizajeController extends Controller
     public function store(Request $request){
         try {
             DB::beginTransaction();
-            Log::info($request);
             
             $logro = new LogrosAprendizaje();
             
@@ -97,14 +98,16 @@ class LogroAprendizajeController extends Controller
 
     public function obtenerLogrosPeriodo(Request $request){
         try {
-            // Log::info($request);
             $datos = CarreraDocenteMateria::select(
                 'logros_aprendizaje.codigo as codigo_logro',
                 'logros_aprendizaje.descripcion as logro',
                 'carrera_docente_materias.id_materia',
                 'materias.descripcion as materia',
             )
-            ->join('logros_mat_carr_per_doc','carrera_docente_materias.id_carrera_docente_materia','logros_mat_carr_per_doc.id_carrera_docente_materia')
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
             ->join('logros_aprendizaje','logros_mat_carr_per_doc.id_logros','logros_aprendizaje.id_logros')
             ->join('materias','carrera_docente_materias.id_materia','materias.id_materia')
             ->where('carrera_docente_materias.id_carrera',$request->carrera)
@@ -132,6 +135,59 @@ class LogroAprendizajeController extends Controller
             ],400);                 
         }
     }
+    public function getLogrosPorMateria(Request $request){
+        try {
+            $data = CarreraDocenteMateria::select(
+                "docentes.nombre as docente",
+                "logros_aprendizaje.codigo as logro",
+                "grupo_estudiantes.descripcion as grupo",
+                DB::raw("ROUND((puntuacion_logro_grupo_estudiante.puntuacion / puntuacion_logros.puntuacion) * 100, 2) AS porcentaje"),
+                "estudiante_grupo_estudiante.id_estudiante",
+                "puntuacion_logro_grupo_estudiante.puntuacion",
+                "puntuacion_logros.puntuacion as puntuacion_total"
+            )
+            ->where('carrera_docente_materias.id_materia',$request->materia)
+            ->where('carrera_docente_materias.id_periodo',$request->periodo)
+            ->where('carrera_docente_materias.id_carrera',$request->carrera)
+            ->join('docentes','carrera_docente_materias.id_docente','docentes.id_docente' )
+            ->join('logros_mat_carr_per_doc','logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+            ->join("logros_aprendizaje","logros_aprendizaje.id_logros",'logros_mat_carr_per_doc.id_logros')
+            ->join("grupo_estudiantes","grupo_estudiantes.id_grupo","carrera_docente_materias.id_grupo")
+            ->join("puntuacion_logro_grupo_estudiante","puntuacion_logro_grupo_estudiante.id_logros_mat_carr","logros_mat_carr_per_doc.id_logros_mat_carr_per_doc")
+            ->join("estudiante_grupo_estudiante","estudiante_grupo_estudiante.id_estudiante_grupo","puntuacion_logro_grupo_estudiante.id_estudiante_grupo")
+            ->join("puntuacion_logros","puntuacion_logros.id_logros_mat_carr_per_doc","puntuacion_logro_grupo_estudiante.id_logros_mat_carr")
+            ->get();
+            $agrupaciones = $data->groupBy("grupo")->map(function($map,$grupo){
+                $datoMap=  $map->groupBy("logro")->map(function($mapLogro,$indice) use($grupo){
+                    return[
+                        "grupo"=>$grupo,
+                        "logro"=>$indice,
+                        "cantidad_estudiantes"=>count($mapLogro),
+                        "porcentaje"=>round($mapLogro->sum("porcentaje") / count($mapLogro),2),
+                    ];
+                });
+                $cantidadEstudiantes = count($map->groupBy('id_estudiante'));
+                return[
+                    "docente"=>$map[0]->docente,
+                    "cantidad_estudiantes"=>$cantidadEstudiantes,
+                    "grupo"=>$grupo,
+                    "datos"=>$datoMap->values(),
+                ];
+            })->values();
+            return response()->json([
+                "ok"=>true,
+                "data"=>$agrupaciones
+            ],200);
+        }catch (Exception $e) {
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'Error al obtener los logros por materia',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
     public function historialReporteNominaCarreraDocenteMateria(Request $request){
         try {
             $datos = ArchivosSubidos::select(
@@ -156,13 +212,14 @@ class LogroAprendizajeController extends Controller
     }
     public function clonarLogrosPorPeriodo(Request $request){
         try {
-            Log::info($request->periodo);
-            Log::info($request->materias);
             $datosReferencia = CarreraDocenteMateria::select(
                 "carrera_docente_materias.id_materia",
                 'logros_mat_carr_per_doc.id_logros'
             )
-            ->join('logros_mat_carr_per_doc','logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
             ->where('carrera_docente_materias.id_carrera',$request->carrera)
             ->where('carrera_docente_materias.id_periodo',$request->periodo_referencio)
             ->whereIn('carrera_docente_materias.id_materia',$request->materias)
@@ -178,7 +235,7 @@ class LogroAprendizajeController extends Controller
             ->whereIn('carrera_docente_materias.id_materia',$request->materias)
             ->get();
 
-            LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$periodoAsignado->pluck('id_carrera_docente_materia'))->delete();
+            LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$periodoAsignado->pluck('id_carrera_docente_materia'))->update(['estado'=>0]);
 
             $dataFinal = [];
             foreach ($periodoAsignado as  $periodo) {
@@ -216,7 +273,7 @@ class LogroAprendizajeController extends Controller
                 ->get()
                 ->pluck('id_carrera_docente_materia');
           
-                LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$id_carrera_docente_materia)->delete();
+                LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$id_carrera_docente_materia)->update(['estado'=>0]);
                 
                 $datosAGuardar = [];
                 foreach ($id_carrera_docente_materia as $id_materia_docente) {
@@ -249,7 +306,10 @@ class LogroAprendizajeController extends Controller
                 'carrera_docente_materias.id_materia',
                 'logros_mat_carr_per_doc.id_logros',
             )
-            ->join('logros_mat_carr_per_doc','logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            }) 
             ->where('carrera_docente_materias.id_carrera',$request->carrera)
             ->where('carrera_docente_materias.id_periodo',$request->periodos)
             ->get();
@@ -280,7 +340,7 @@ class LogroAprendizajeController extends Controller
             ->whereIn('id_materia',$request->materias)
             ->get()->pluck('id_carrera_docente_materia');
             
-            LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$id_carrera_docente_materia)->delete();
+            LogrosMateriaPeriodoDocente::whereIn('id_carrera_docente_materia',$id_carrera_docente_materia)->update(['estado',0]);
 
             $datosAGuardar = [];
             foreach ($id_carrera_docente_materia as $id_materia_docente) {

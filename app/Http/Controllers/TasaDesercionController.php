@@ -123,7 +123,6 @@ public function obtenerRowPeriodo($id_periodo){
 
     public function eliminarTasaDesercion(Request $request){
         try {
-            Log::info($request);
             ArchivosSubidos::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
             RegistroEstudiantil::where('id_periodo',$request->id)->where('id_carrera',$request->id_carrera)->delete();
             return response()->json([

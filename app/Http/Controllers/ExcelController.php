@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Exports\PuntuacionLogrosExport;
+use App\Imports\PuntuacionLogroMasiva;
 use App\Models\ArchivosSubidos;
+use App\Models\ConfigIndicadoresCarrera;
 use App\Models\EstudiantesEgresados;
+use App\Models\EstudiantesReprobados;
 use App\Models\Materia;
 use App\Models\PuntuacionLogros;
 use Exception;
@@ -53,9 +56,12 @@ class ExcelController extends Controller
     protected $promMateria;
     protected $promTitulacion;
     protected $promGeneral;
+    protected $promAsistencia;
 
     public function registrarDatosExcel(Request $request){
         try {
+            $startTime = microtime(true);
+
             $uploadedFile = $request->file('file');
             
             $fileContent = file_get_contents($uploadedFile->getRealPath());
@@ -139,6 +145,9 @@ class ExcelController extends Controller
                 'file_hash' => $fileHash,
                 'file_path'=>$path,
             ]);
+
+            $endTime = microtime(true);
+            $executionTime = $endTime - $startTime;
 
             return response()->json(['ok'=>true,'message' => 'Archivo subido con éxito']);
 
@@ -364,6 +373,123 @@ class ExcelController extends Controller
 
 
 
+    
+    public function registrarDatosExcelReprobados(Request $request){
+        try {
+            DB::beginTransaction();
+            $uploadedFile = $request->file('file');
+            $fileContent = file_get_contents($uploadedFile->getRealPath());
+            $fileHash = hash('sha256', $fileContent);
+            if (ArchivosSubidos::where('file_hash', $fileHash)->where('id_indicador',6)->exists()) {
+                throw new Exception("El archivo ya ha sido subido anteriormente.");
+            } 
+            $data = Excel::toArray([], $uploadedFile);
+            $excel = $data[0];
+            if (!empty($excel) && is_array($excel[0])) {
+                foreach ($data[0][0] as $key => $value) {
+                    if($value === 'COD_PLECTIVO'){$this->indexCodPeriodo = $key; }
+                    if($value === 'PERIODO'){$this->indexPeriodo = $key;}
+                    if($value === 'CARRERA'){$this->indexCarrera = $key;}
+                    if($value === 'IDENTIFICACION'){$this->indexCi = $key;}
+                    if($value === 'ESTUDIANTE'){$this->indexNombre = $key;}
+
+                    if($value === 'COD_MATERIA'){$this->indexCodMateria = $key;}
+                    if($value === 'MATERIA'){$this->indexMateria = $key;}
+                    if($value === 'COD_GRUPO'){$this->indexCodGrupo = $key;}
+                    if($value === 'GRUPO/PARALELO'){$this->indexGrupo = $key;}
+                    
+                    if($value === 'CONVENCIONAL'){$this->indexConvencional = $key;}
+                    if($value === 'CELULAR'){$this->indexCelular = $key;}
+                    if($value === 'CORREO_PERSONAL'){$this->indexCorreos = $key;}
+                    
+                    if($value === 'PROMEDIO'){$this->promGeneral = $key;}
+                    if($value === 'ASISTENCIA'){$this->promAsistencia = $key;} 
+
+                    if($value === 'ESTADO'){$this->indexNivelactual = $key;} 
+                                    
+                }
+            }else{
+                throw new Exception("Error no existen datos en el excel");
+            }
+            if(!isset($this->indexPeriodo)){throw new Exception("Error, verifique que exista la cabecera: 'PERIODO' ");}
+            if(!isset($this->indexCodPeriodo)){throw new Exception("Error, verifique que exista la cabecera: 'COD_PLECTIVO' ");}
+            if(!isset($this->indexCarrera)){throw new Exception("Error, verifique que exista la cabecera: 'CARRERA' ");}
+            if(!isset($this->indexCi)){throw new Exception("Error, verifique que exista la cabecera: 'IDENTIFICACION' ");}
+            if(!isset($this->indexNombre)){throw new Exception("Error, verifique que exista la cabecera: 'ESTUDIANTE' ");}
+            if(!isset($this->indexCodMateria)){throw new Exception("Error, verifique que exista la cabecera: 'COD_MATERIA' ");}
+            if(!isset($this->indexMateria)){throw new Exception("Error, verifique que exista la cabecera: 'MATERIA' ");}
+            if(!isset($this->indexCodGrupo)){throw new Exception("Error, verifique que exista la cabecera: 'COD_GRUPO' ");}
+            if(!isset($this->indexGrupo)){throw new Exception("Error, verifique que exista la cabecera: 'GRUPO/PARALELO' ");}
+            if(!isset($this->indexConvencional)){throw new Exception("Error, verifique que exista la cabecera: 'CONVENCIONAL' ");}
+            if(!isset($this->indexCelular)){throw new Exception("Error, verifique que exista la cabecera: 'CELULAR' ");}
+            if(!isset($this->indexCorreos)){throw new Exception("Error, verifique que exista la cabecera: 'CORREO_PERSONAL' ");}
+            
+            if(!isset($this->promAsistencia)){throw new Exception("Error, verifique que exista la cabecera: 'ASISTENCIA' ");}
+            if(!isset($this->promGeneral)){throw new Exception("Error, verifique que exista la cabecera: 'PROMEDIO' ");}
+
+            if(!isset($this->indexNivelactual)){throw new Exception("Error, verifique que exista la cabecera: 'ESTADO' ");}
+            array_shift($excel);
+            
+            $periodo = $this->verificarPeriodo($excel[1][$this->indexPeriodo], $excel[1][$this->indexCodPeriodo] );
+            $carrera = Carrera::where('carrera',$excel[4][$this->indexCarrera])->first();
+
+            $configuracion = ConfigIndicadoresCarrera::where('id_carrera',$carrera->id)->where('estado',1)->first();
+            
+            if(!$periodo){
+                throw new Exception("El periodo del documento no existe dentro de la base, debe primero ingresar una Nomina Periodo Carrera Docente");
+            }
+
+            $materias =  $this->verificarMaterias($excel);
+            $estudiantes =  $this->verificarEstudiantesNomina($excel);
+            $grupos = $this->verificarGruposEstudiantes($excel);
+            
+            $path = $uploadedFile->store('uploads');
+
+            $archivo = ArchivosSubidos::create([
+                'id_periodo'=>$periodo->id,
+                'id_carrera'=>$carrera->id,
+                'id_indicador'=>6,
+                'file_name' => $uploadedFile->getClientOriginalName(),
+                'file_hash' => $fileHash,
+                'file_path'=>$path,
+            ]);
+            $dataExcel = [];
+            foreach ($excel as $key => $valorExcel) {
+                if(isset($valorExcel[$this->indexCodGrupo]) && $valorExcel[$this->indexNivelactual]==="REPROBADA"){
+                    $dataExcel[] =[
+                        'id_periodo'=>$periodo->id,
+                        'id_carrera'=>$carrera->id,
+                        'id_materia'=>$materias[trim($valorExcel[$this->indexCodMateria])],
+                        'id_grupo'=>$grupos[trim($valorExcel[$this->indexCodGrupo])],
+                        'id_estudiante'=>$estudiantes[trim($valorExcel[$this->indexCi])],
+                        'asistencia'=>floatval($valorExcel[$this->promAsistencia]),
+                        'promedio'=>floatval($valorExcel[$this->promGeneral]),
+                        'reprobado_asistencia'=>floatval($valorExcel[$this->promAsistencia]) < $configuracion->prom_min_asistencia ? 1:0,
+                        'reprobado_nota'=> floatval($valorExcel[$this->promGeneral]) <  $configuracion->prom_min_notas?1:0,
+                        'id_archivo'=>$archivo->id,
+                        'created_at'=>now(),
+                    ];
+                }
+            }
+            
+            EstudiantesReprobados::insert($dataExcel);
+            DB::commit();
+
+            return response()->json(['ok'=>true,'message' => 'Archivo subido con éxito']);
+
+        }catch (Exception $e) {
+            DB::rollBack();
+            Log::error($e);
+            return response([
+                "ok"=>false,
+                'message'=>'error al registrar los datos',
+                "error"=>$e->getMessage()
+            ],400);                 
+        }
+    }
+
+
+
 
 
 
@@ -414,7 +540,6 @@ class ExcelController extends Controller
             $periodo = $this->verificarPeriodo($excel[1][$this->indexPeriodo], $excel[1][$this->indexCodPeriodo] );
             $carrera = $this->verificarCarrera($excel[1]);
             
-            Log::info(ArchivosSubidos::where('id_periodo', $periodo->id)->where('id_carrera',$carrera->id)->where('id_indicador',3)->get());
             if (ArchivosSubidos::where('id_periodo', $periodo->id)->where('id_carrera',$carrera->id)->where('id_indicador',3)->exists()) {
                 throw new Exception("Ya existe un archivo con estos datos de carrera y periodo en este identificador.");
             }
@@ -464,58 +589,59 @@ class ExcelController extends Controller
         }
     }
 
-//----------------------SUBIR CARGA MASIVA -----------------------------
+//----------------------SUBIR CARGA MASIVA GENERADA POR EL SISTEMA-----------------------------
 public function subirAsignacionPuntosMasiva(Request $request){
     try {
+        DB::beginTransaction();
         $uploadedFile = $request->file('file');
         $fileContent = file_get_contents($uploadedFile->getRealPath());
         $fileHash = hash('sha256', $fileContent);
-        if (ArchivosSubidos::where('file_hash', $fileHash)->exists()) {
+        if (ArchivosSubidos::where('file_hash', $fileHash)->where('id_indicador',4)->exists() ) {
             throw new Exception("El archivo ya ha sido subido anteriormente.");
         }
 
         $data = Excel::toArray([], $uploadedFile);
-        DB::beginTransaction();
-        
-       
+        $excel = $data[0];
+        if (!empty($excel) && is_array($excel[0])) {
+            foreach ($data[0][0] as $key => $value) {
+                if($value === 'Grupo'){$this->indexCodGrupo = $key; }
+                if($value === 'Id_logro'){$this->indexGrupo = $key;}
+                if($value === 'Id_Estudiante'){$this->indexCi = $key;}
+                if($value === 'Pregunta'){$this->indexConvencional = $key;}
+                if($value === 'Puntuacion'){$this->indexNivelactual = $key;}
 
-        foreach($data as $hojaExcel){
-            foreach ($hojaExcel[0] as $key => $value) {
-                Log::info($key);
-                if($value === 'Identificador'){$this->indexCi = $key; }
-                if($value === 'Puntuacion'){$this->indexCodGrupo = $key; }
-                if($value === 'N° Pregunta'){$this->indexCodMateria = $key; }
-
-
+                if($value === 'Periodo'){$this->indexPeriodo = $key;}
+                if($value === 'Carrera'){$this->indexCarrera = $key;}
             }
-            if(!isset($this->indexCi)){throw new Exception("Error, verifique que exista la cabecera: 'Identificador' ");}
-            if(!isset($this->indexCodGrupo)){throw new Exception("Error, verifique que exista la cabecera: 'Puntuacion' ");}
-            if(!isset($this->indexCodMateria)){throw new Exception("Error, verifique que exista la cabecera: 'N° Pregunta' ");}
-            array_shift($hojaExcel);
-            
-            $path = $uploadedFile->store('uploads');
-            $archivoSubido = ArchivosSubidos::create([
-                'id_indicador'=>4,
-                'file_name' => $uploadedFile->getClientOriginalName(),
-                'file_hash' => $fileHash,
-                'file_path'=>$path,
-            ]);
-
-            $guardarEnBase = [];
-            foreach ($hojaExcel as $valorExcel){
-                    $guardarEnBase[]=[
-                        'pregunta'=>$valorExcel[$this->indexCodMateria],
-                        'puntuacion'=>$valorExcel[$this->indexCodGrupo],
-                        'id_logros_mat_carr_per_doc'=>$valorExcel[$this->indexCi],
-                        'id_archivo'=>$archivoSubido->id,
-                        'created_at'=> now(),
-                    ];
-            }
-            PuntuacionLogros::insert($guardarEnBase);
-
+        }else{
+            throw new Exception("Error no existen datos en el excel");
         }
+
+        if(!isset($this->indexCodGrupo)){throw new Exception("Error, verifique que exista la cabecera: 'Grupo' ");}
+        if(!isset($this->indexGrupo)){throw new Exception("Error, verifique que exista la cabecera: 'Id_logro' ");}
+        if(!isset($this->indexCi)){throw new Exception("Error, verifique que exista la cabecera: 'Id_Estudiante' ");}
+        if(!isset($this->indexConvencional)){throw new Exception("Error, verifique que exista la cabecera: 'Pregunta' ");}
+        if(!isset($this->indexNivelactual)){throw new Exception("Error, verifique que exista la cabecera: 'Puntuacion' ");}
+        if(!isset($this->indexPeriodo)){throw new Exception("Error, verifique que exista la cabecera: 'Periodo' ");}
+        if(!isset($this->indexCarrera)){throw new Exception("Error, verifique que exista la cabecera: 'Carrera' ");}
+
+        $periodo = Periodo::where('codigo',$excel[3][$this->indexPeriodo])->first();
+        $carrera = Carrera::where('carrera',$excel[3][$this->indexCarrera])->first();
+        $path = $uploadedFile->store('uploads');
+        $archivo = ArchivosSubidos::create([
+            'id_periodo'=>$periodo->id,
+            'id_carrera'=>$carrera->id,
+            'id_indicador'=>4,
+            'file_name' => $uploadedFile->getClientOriginalName(),
+            'file_hash' => $fileHash,
+            'file_path'=>$path,
+        ]);
+
+        Excel::import(new PuntuacionLogroMasiva($archivo->id), $uploadedFile);
+
         DB::commit();
         return response()->json(['ok'=>true,'message' => 'Archivo subido con éxito']);
+    
     }catch (Exception $e) {
         DB::rollBack();
         Log::error($e);
@@ -529,46 +655,74 @@ public function subirAsignacionPuntosMasiva(Request $request){
 //---------------------Descargar Formatos Excel -----------------------
     public function descargarFormatoPuntuacion(Request $request){
         try {
-            Log::info($request);
-            $carreraDocente = CarreraDocenteMateria::
-            where('id_materia',$request->datos["materia"])
+            DB::beginTransaction();
+            $logrosCarreraDocente = CarreraDocenteMateria::select(
+                "logros_mat_carr_per_doc.id_logros_mat_carr_per_doc",
+                "logros_mat_carr_per_doc.id_logros",
+            )
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
+            ->where('id_materia',$request->datos["materia"])
             ->where('id_carrera',$request->datos["carrera"])
             ->where('id_periodo',$request->datos["periodos"])
             ->where('id_docente',$request->datos["docente"])
             ->where('id_grupo',$request->datos["grupo"])
-            ->first();
-            Log::info(collect($carreraDocente));
-            throw new Exception("Error Processing Request", 1);
+            ->get();
+            $data = $request["puntuacion"];
+            foreach ($data as  &$value) {
+                $idLogro = collect($logrosCarreraDocente)->where("id_logros",$value["logro"])->first();
+                $value["id_logros_mat_carr_per_doc"] = $idLogro->id_logros_mat_carr_per_doc;
+                $value["created_at"] = now();
+                unset($value["logro"]);
+            }
+            PuntuacionLogros::insert($data);
             $datos = CarreraDocenteMateria::select(
-                "logros_mat_carr_per_doc.id_logros_mat_carr_per_doc as identificador",
                 "carrera.carrera",
                 "periodo.codigo as periodo",
                 "materias.descripcion as materia",
                 "docentes.nombre as docente",
                 "grupo_estudiantes.descripcion as grupo",
+                "logros_mat_carr_per_doc.id_logros_mat_carr_per_doc as identificador",
                 "logros_aprendizaje.codigo as logro",
+                "estudiantes.id",
+                "estudiantes.estudiante",
+                "puntuacion_logros.pregunta",
+                "puntuacion_logros.puntuacion"
             )
-            ->join('logros_mat_carr_per_doc','logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+            ->join('logros_mat_carr_per_doc',function($join){
+                $join->on('logros_mat_carr_per_doc.id_carrera_docente_materia','carrera_docente_materias.id_carrera_docente_materia')
+                ->where("logros_mat_carr_per_doc.estado",1);
+            })
             ->join('logros_aprendizaje','logros_mat_carr_per_doc.id_logros','logros_aprendizaje.id_logros')
+            ->join("puntuacion_logros","puntuacion_logros.id_logros_mat_carr_per_doc","logros_mat_carr_per_doc.id_logros_mat_carr_per_doc")
             ->join('docentes','carrera_docente_materias.id_docente','docentes.id_docente')
+            ->join('estudiante_grupo_estudiante',function($join) use($request){
+                $join->on("estudiante_grupo_estudiante.id_grupo",'carrera_docente_materias.id_grupo')
+                ->where('estudiante_grupo_estudiante.id_materia',$request->datos["materia"])
+                ->where('estudiante_grupo_estudiante.id_carrera',$request->datos["carrera"])
+                ->where('estudiante_grupo_estudiante.id_periodo',$request->datos["periodos"]);
+            })
+            ->join("estudiantes","estudiante_grupo_estudiante.id_estudiante","estudiantes.id")
             ->join('grupo_estudiantes','carrera_docente_materias.id_grupo','grupo_estudiantes.id_grupo')
             ->join('materias','carrera_docente_materias.id_materia','materias.id_materia')
             ->join('carrera','carrera_docente_materias.id_carrera','carrera.id')
             ->join('periodo','carrera_docente_materias.id_periodo','periodo.id')
-            ->where('carrera.id',$request->carrera)
-            ->where('periodo.id',$request->periodos)
-            ->where('docentes.id_docente',$request->docente)
-            ->where('materias.id_materia',$request->materias)
-            ->orderBy('materias.id_materia')
-            ->orderBy('docentes.id_docente')
-            ->orderBy('grupo_estudiantes.id_grupo')
+
+            ->where('materias.id_materia',$request->datos["materia"])
+            ->where('carrera.id',$request->datos["carrera"])
+            ->where('periodo.id',$request->datos["periodos"])
+            ->where('docentes.id_docente',$request->datos["docente"])
+            ->orderBy('estudiantes.id')
             ->orderBy('logros_aprendizaje.id_logros')
             ->get();
-            
+            DB::commit();
             return Excel::download(new PuntuacionLogrosExport($datos), 'datos.xlsx');
             
         }catch (Exception $e) {
             Log::error($e);
+            DB::rollBack();
             return response([
                 "ok"=>false,
                 'message'=>'Error al descargar el formato excel',
@@ -631,7 +785,7 @@ public function subirAsignacionPuntosMasiva(Request $request){
         
         $arrayAsociativoMaterias = [] ;
         foreach ($todosLosgrupos as $value) {
-            $arrayAsociativoMaterias[$value->ci] =  $value->id;
+            $arrayAsociativoMaterias[trim($value->ci)] =  $value->id;
         }
         return $arrayAsociativoMaterias;
     }
@@ -729,11 +883,18 @@ public function subirAsignacionPuntosMasiva(Request $request){
 
     public function verificarGruposEstudiantes($excel){
         $datosGruposExcel = array_map(function($grupos) {
-            return [
-                "descripcion"=>$grupos[$this->indexGrupo], 
-                "codigo"=>trim($grupos[$this->indexCodGrupo]),
-            ];
+            $descripcion = $grupos[$this->indexGrupo];
+            $codigo = trim($grupos[$this->indexCodGrupo]);
+            if ($codigo !== "") {
+                return [
+                    "descripcion" => $descripcion,
+                    "codigo" => $codigo,
+                ];
+            } else {
+                return null; // O cualquier otro valor que desees cuando el código esté vacío
+            }
         }, $excel);
+        $datosGruposExcel = array_filter($datosGruposExcel);
         $GruposUnicos = collect($datosGruposExcel)->unique("codigo")->values();
 
         $Grupos = GrupoEstudiante::select('codigo')->whereIn('codigo',$GruposUnicos->pluck('codigo'))->get()->pluck('codigo');

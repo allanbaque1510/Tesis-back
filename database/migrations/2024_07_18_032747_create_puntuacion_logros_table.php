@@ -18,7 +18,7 @@ return new class extends Migration
             $table->integer('pregunta');
             $table->double('puntuacion');
 
-            $table->unsignedBigInteger('id_archivo');
+            $table->unsignedBigInteger('id_archivo')->nullable();
             $table->foreign('id_archivo')->references('id')->on('archivos_subidos')->onUpdate('cascade');
 
             $table->unsignedBigInteger('id_logros_mat_carr_per_doc');

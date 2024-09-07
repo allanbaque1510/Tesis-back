@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('config_indicadores_carreras', function (Blueprint $table) {
+        Schema::create('config_indicadores_carreras', function (Blueprint $table){
             $table->id('id_configuracion');
             $table->unsignedBigInteger('id_carrera');
             $table->foreign('id_carrera')->references('id')->on('carrera')->onDelete('cascade')->onUpdate('cascade');
@@ -19,6 +19,8 @@ return new class extends Migration
             $table->tinyInteger('total_periodos');
             $table->tinyInteger('periodos_gracia');
             $table->tinyInteger('puntuacion');
+            $table->tinyInteger('prom_min_asistencia');
+            $table->tinyInteger('prom_min_notas');
             $table->tinyInteger('estado')->default(1);
             $table->timestamps();
         });

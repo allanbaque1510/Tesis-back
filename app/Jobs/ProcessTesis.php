@@ -22,7 +22,6 @@ class ProcessTesis implements ShouldQueue
     }
     public function agregandoDatosYvariables(){
         try {
-            Log::info("Ejecutandose Job");
             $variables = ['LINEA DE TIEMPO','GRAFICO DE BARRAS','GRAFICO DE PASTEL'];
             $indicadores = [
                 'TASA DE DESERCION',
@@ -30,6 +29,7 @@ class ProcessTesis implements ShouldQueue
                 'NOMINA CARRERA MATERIA DOCENTE',
                 'CARGA MASIVA PUNTUACION LOGROS APRENDIZAJE',
                 'NOMINA ESTUDIANTES PERIODO',
+                'TASA DE REPROBADOS',
             ];
             $datos = [] ;
             foreach ($variables as $value) {
@@ -58,7 +58,6 @@ class ProcessTesis implements ShouldQueue
     }
     public function handle(): void
     {
-        Log::info("Estas en el handle");
         $this->agregandoDatosYvariables();
     }
 }

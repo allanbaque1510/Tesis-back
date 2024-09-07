@@ -11,10 +11,13 @@ class ConfigIndicadoresCarrera extends Model
     protected $table = 'config_indicadores_carreras';
     protected $primaryKey = 'id_configuracion';
     protected $fillable = [
-        'periodos_desercion',
         'id_carrera',
+        'periodos_desercion',
         'total_periodos',
-        'puntuacion',
         'periodos_gracia',
+        'puntuacion',
+        'prom_min_asistencia',
+        'prom_min_notas',
+        'estado',
     ];
 }

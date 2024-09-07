@@ -13,6 +13,7 @@ class LogrosMateriaPeriodoDocente extends Model
     protected $fillable = [
         'id_carrera_docente_materia',
         "id_logros",
+        'estado',
     ];
     
 }

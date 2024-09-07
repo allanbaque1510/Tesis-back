@@ -30,30 +30,35 @@ class PuntuacionLogrosExport implements FromCollection, WithHeadings, WithColumn
     public function headings(): array
     {
         return [
-            'Identificador',
             'Carrera',
             'Periodo',
             'Materia',
             'Nombre Docente',
             'Grupo',
+            'Id_logro',
             'Logro',
-            'N° Pregunta',
-            'Puntuacion',
+            "Id_Estudiante",
+            "Estudiante",
+            "Pregunta",
+            "Punto Referencia",
+            "Puntuacion"
+
         ];
     }
 
     public function columnWidths(): array
     {
         return [
-            'A' => 10,
-            'B' => 20,
-            'C' => 17,
-            'D' => 20,
-            'E' => 25,
-            'F' => 20,
+            'A' => 20,
+            'B' => 17,
+            'C' => 20,
+            'D' => 25,
+            'E' => 20,
+            'F' => 10,
             'G' => 10,
             'H' => 10,
-            'I' => 10,
+            'I' => 25,
+            'K' => 15,
         ];
     }
 
