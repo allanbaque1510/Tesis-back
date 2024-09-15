@@ -113,7 +113,8 @@ public function obtenerRowPeriodo($id_periodo){
             ->get();
             
             $hasta = $configuracionCarrera->total_periodos + $configuracionCarrera->periodos_gracia;
-            $datosTitulacion = [] ;
+            $datosTitulacion = [];
+            $sumatoriaValores = 0;
             for ($i=$configuracionCarrera->total_periodos- 1; $i < $hasta; $i++) { 
                 if(isset($filteredPeriodos[$i])){
                         $contador = RegistroEstudiantil::select('estudiantes.estudiante')->where('registro_estudiantil.id_periodo',$filteredPeriodos[$i]->id)
@@ -122,13 +123,18 @@ public function obtenerRowPeriodo($id_periodo){
                         ->join('estudiantes','estudiantes.id','registro_estudiantil.id_estudiante')
                         ->join('habilitado','registro_estudiantil.id_habilitado','habilitado.id')
                         ->where('habilitado.descripcion','NIVELACION');
+                        $sumatoriaValores +=$contador->count();
                         $datosTitulacion [] =[
                             "value"=>$contador->count(),
                             "label"=>$filteredPeriodos[$i]->codigo
                         ];
                 }
             }
-          
+            $datosTitulacion [] =[
+                "value"=>count($estudiantesEgresados) - $sumatoriaValores,
+                "label"=>"Otros casos"
+            ];
+            Log::info($datosTitulacion);
             return response()->json([
                 'ok'=>true,
                 "data_table"=>$data,

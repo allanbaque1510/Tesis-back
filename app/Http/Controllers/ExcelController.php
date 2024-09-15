@@ -326,7 +326,6 @@ class ExcelController extends Controller
             $carreras = $this->verificarCarreraSinCodigo($excel);
             $grupos = $this->verificarGruposEstudiantes($excel);
             
-            
             $path = $uploadedFile->store('uploads');
 
             $archivo = ArchivosSubidos::create([
@@ -340,21 +339,20 @@ class ExcelController extends Controller
 
             $dataExcel = [];
             foreach ($excel as $key => $valorExcel) {
-                if(isset($valorExcel[$this->indexCodMateria])){
+                if(isset($valorExcel[$this->indexCodMateria]) && strlen($valorExcel[$this->indexCodGrupo]) > 0){
                     $dataExcel[] =[
                         'id_periodo'=>$periodo->id,
                         'id_carrera'=>$carreras[$valorExcel[$this->indexCarrera]],
                         'id_materia'=>$materias[trim($valorExcel[$this->indexCodMateria])],
                         'id_grupo'=>$grupos[trim($valorExcel[$this->indexCodGrupo])],
-                        'id_estudiante'=>$estudiantes[$valorExcel[$this->indexCi]],
+                        'id_estudiante'=>$estudiantes[trim($valorExcel[$this->indexCi])],
                         'id_archivo'=>$archivo->id,
                         'created_at'=>now(),
                     ];
                 }
             }
-            
-            EstudianteGrupoEstudiante::insert($dataExcel);
 
+            EstudianteGrupoEstudiante::insert($dataExcel);
    
             DB::commit();
             return response()->json(['ok'=>true,'message' => 'Archivo subido con éxito']);

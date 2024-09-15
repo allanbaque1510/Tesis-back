@@ -459,10 +459,13 @@ class ServiciosController extends Controller
 
     public function saveConfiguration(Request $request){
         try {
+            
             if(isset($request->id_configuracion)){
                 $data = ConfigIndicadoresCarrera::where('id_configuracion',$request->id_configuracion)
                 ->update([
                     'periodos_desercion'=>$request->cantidad_periodos,
+                    'prom_min_asistencia'=>$request->porcentaje_min_asistencia,
+                    'prom_min_notas'=>$request->nota_prom_general,
                     'total_periodos'=>$request->cantidad_total_periodos,
                     'periodos_gracia'=>$request->cantidad_periodos_gracia,
                     "puntuacion"=>$request->puntuacion,
@@ -472,6 +475,8 @@ class ServiciosController extends Controller
                      'id_carrera'=>$request->carrera,
                      'periodos_desercion'=>$request->cantidad_periodos,
                      'total_periodos'=>$request->cantidad_total_periodos,
+                     'prom_min_asistencia'=>$request->porcentaje_min_asistencia,
+                     'prom_min_notas'=>$request->nota_prom_general,
                      'periodos_gracia'=>$request->cantidad_periodos_gracia,
                      "puntuacion"=>$request->puntuacion,
                  ]);
